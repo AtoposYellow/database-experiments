@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教务管理系统 · 学生选课管理</title>
+<style>
+  /* ============ 基础样式（配色：晴朗天空蓝，明快清爽） ============ */
+  :root {
+    --blue: #4a9ed8; --blue-dark: #3a88bd; --blue-deep: #2f7eb5;
+    --blue-light: #7ec3ef; --blue-tint: #eaf4fc; --blue-tint-2: #f5fafd;
+    --bg: #f0f6fb; --card: #ffffff; --line: #dcebf7;
+    --text: #1f2c44; --muted: #71809c;
+    --ok: #199a54; --ok-bg: #e8f8ef;
+    --err: #d64545; --err-bg: #fdeeee;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    font-size: 14.5px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 26px; }
+
+  /* ============ 顶栏 ============ */
+  .topbar {
+    background: linear-gradient(135deg, #4a9ed8 0%, #6ab5e8 55%, #8fd0f5 100%);
+    color: #fff; padding: 20px 0;
+    box-shadow: 0 4px 18px rgba(74, 158, 216, .35);
+  }
+  .topbar .wrap { display: flex; justify-content: space-between; align-items: center; }
+  .brand { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  .brand span { font-weight: 400; font-size: 13px; opacity: .85; margin-left: 12px; letter-spacing: 0; }
+  /* 后端状态显示灯：绿灯=运行中，红灯=连接异常 */
+  .ping {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; background: rgba(255,255,255,.14);
+    padding: 6px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25);
+  }
+  .ping .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #b9c4d6; transition: .3s;
+  }
+  .ping.good .dot { background: #2ee56b; box-shadow: 0 0 10px #2ee56b; }
+  .ping.bad .dot { background: #ff5252; box-shadow: 0 0 10px #ff5252; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  /* ============ 功能导航按钮 ============ */
+  nav { display: flex; flex-wrap: wrap; gap: 12px; padding: 22px 0 4px; }
+  nav button {
+    border: 1px solid var(--line); background: #fff; color: var(--text);
+    padding: 11px 20px; border-radius: 999px; cursor: pointer; font-size: 15px;
+    box-shadow: 0 2px 6px rgba(74, 158, 216, .15); transition: .18s;
+  }
+  nav button:hover { border-color: var(--blue); color: var(--blue); transform: translateY(-1px); }
+  nav button.active {
+    background: var(--blue); border-color: var(--blue); color: #fff;
+    box-shadow: 0 5px 16px rgba(74, 158, 216, .4);
+  }
+
+  /* ============ 面板卡片 ============ */
+  main { padding: 14px 0 56px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 26px 30px; margin-bottom: 20px;
+    box-shadow: 0 3px 14px rgba(15, 45, 92, .06);
+  }
+  .card h2 { margin: 0 0 8px; font-size: 19px; color: var(--blue-deep); }
+  .card p.desc { margin: 0 0 18px; color: var(--muted); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+  button.primary {
+    background: var(--blue); color: #fff; border: none; cursor: pointer;
+    padding: 10px 22px; border-radius: 9px; font-size: 15px; transition: .18s;
+    box-shadow: 0 3px 10px rgba(74, 158, 216, .35);
+  }
+  button.primary:hover { background: var(--blue-dark); transform: translateY(-1px); }
+  button.warn { background: #d9534f; box-shadow: 0 3px 10px rgba(217, 83, 79, .3); }
+  button.warn:hover { background: #c1362f; }
+  button[disabled] { opacity: .45; cursor: not-allowed; transform: none !important; box-shadow: none; }
+
+  /* ============ 表单 ============ */
+  label { display: block; margin: 12px 0 5px; font-weight: 600; font-size: 13.5px; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--line);
+    border-radius: 9px; font-size: 14.5px; background: #fbfcfe;
+    transition: .15s;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--blue); background: #fff;
+    box-shadow: 0 0 0 3px rgba(74, 158, 216, .2); }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .inline-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .inline-form .field { min-width: 170px; }
+
+  /* ============ 提示信息 ============ */
+  .msg { border-radius: 10px; padding: 11px 16px; margin: 14px 0; font-size: 14.5px; }
+  .msg.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid #bfe8d2; }
+  .msg.err { background: var(--err-bg); color: var(--err); border: 1px solid #f2caca; }
+  .msg .hintrule { display: block; margin-top: 4px; font-size: 12.5px; opacity: .9; }
+
+  /* ============ 表格 ============ */
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 11px 14px; text-align: left; }
+  th { background: var(--blue-tint); color: var(--blue-deep); font-size: 13.5px; letter-spacing: .5px; }
+  tr:hover td { background: var(--blue-tint-2); }
+  tr.selected td { background: #dfeefb; }
+  td input, td select {
+    width: 100%; min-width: 70px; border: 1px solid transparent; background: transparent;
+    padding: 5px 7px; border-radius: 6px; font-size: 14.5px;
+  }
+  td input:hover, td select:hover { border-color: var(--line); background: #fff; }
+  td input:focus, td select:focus { border-color: var(--blue); background: #fff; outline: none; }
+  .ops button { padding: 5px 14px; font-size: 13.5px; }
+
+  /* ============ 弹出对话框 ============ */
+  dialog {
+    border: none; border-radius: 14px; padding: 0; width: 440px; max-width: 92vw;
+    box-shadow: 0 22px 60px rgba(74, 158, 216, .4);
+  }
+  dialog::backdrop { background: rgba(120, 175, 215, .4); }
+  .dlg-head {
+    background: linear-gradient(135deg, var(--blue), var(--blue-light));
+    color: #fff; padding: 14px 22px; font-weight: 700; font-size: 15.5px;
+    border-radius: 14px 14px 0 0;
+  }
+  .dlg-body { padding: 10px 22px 18px; }
+  .dlg-foot { display: flex; justify-content: flex-end; gap: 12px; padding: 0 22px 20px; }
+  button.plain {
+    background: #edf1f8; color: var(--text); border: none; cursor: pointer;
+    padding: 10px 18px; border-radius: 9px; transition: .15s;
+  }
+  button.plain:hover { background: #e0e7f3; }
+  .prereq-list { max-height: 150px; overflow: auto; border: 1px solid var(--line);
+                 border-radius: 9px; padding: 8px 14px; background: #fbfcfe; }
+  .prereq-list label { display: inline-flex; align-items: center; gap: 6px;
+                       margin: 5px 16px 5px 0; font-weight: 400; }
+
+  /* ============ 弹出提示（toast） ============ */
+  #toastWrap { position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+               z-index: 99; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    padding: 12px 24px; border-radius: 10px; color: #fff; font-size: 14.5px;
+    opacity: 0; transform: translateY(-8px); transition: .25s;
+    box-shadow: 0 8px 26px rgba(74, 158, 216, .4);
+  }
+  .toast.show { opacity: 1; transform: none; }
+  .toast.ok { background: #17934e; }
+  .toast.err { background: #d64545; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 顶栏 ==================== -->
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">🎓 教务管理系统<span>学生选课管理</span></div>
+    <div class="ping" id="ping"><span class="dot"></span><span id="pingText">检测中…</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+<!-- ==================== 功能导航（主页按钮） ==================== -->
+<nav id="nav">
+  <button data-p="p1" class="active">① 录入新生信息</button>
+  <button data-p="p2">② 学生信息修改</button>
+  <button data-p="p3">③ 课程信息维护</button>
+  <button data-p="p4">④ 成绩录入修改</button>
+  <button data-p="p5">⑤ 统计成绩信息</button>
+  <button data-p="p6">⑥ 按系排名</button>
+  <button data-p="p7">⑦ 学生信息查询</button>
+  <button data-p="p8">⑧ 删除学生信息</button>
+</nav>
+
+<main>
+
+<!-- ==================== 录入新生信息 ==================== -->
+<section id="p1" class="panel active">
+  <div class="card">
+    <h2>录入新生信息</h2>
+    <p class="desc">填写并提交新生数据，成功后展示全部学生。</p>
+    <div class="toolbar">
+      <button class="primary" onclick="openStudentDlg()">＋ 录入</button>
+    </div>
+    <div id="f1msg"></div>
+  </div>
+  <div class="card">
+    <div class="toolbar" style="justify-content:space-between">
+      <h2 style="margin:0">全部学生信息</h2>
+      <button class="plain" onclick="loadStudents('f1table')">刷新</button>
+    </div>
+    <div id="f1table"></div>
+  </div>
+</section>
+
+<!-- ==================== 学生信息修改 ==================== -->
+<section id="p2" class="panel">
+  <div class="card">
+    <h2>学生信息修改</h2>
+    <p class="desc">点「修改」出现学生表，点击信息栏编辑，保存时确认。</p>
+    <div class="toolbar">
+      <button class="primary" id="f2load" onclick="loadEditTable()">修改</button>
+      <button class="plain" onclick="loadEditTable()">刷新</button>
+    </div>
+    <div id="f2msg"></div>
+    <div id="f2table"><p class="hint">尚未加载学生表。</p></div>
+  </div>
+</section>
+
+<!-- ==================== 课程信息维护 ==================== -->
+<section id="p3" class="panel">
+  <div class="card">
+    <h2>课程信息维护</h2>
+    <p class="desc">点「修改」进入选择模式后点击课程行即可编辑；点行选中后可删除；仅未被选修的课程可删除。</p>
+    <div class="toolbar">
+      <button class="primary" onclick="openCourseDlg(null)">＋ 添加课程</button>
+      <button class="primary" id="f3edit" onclick="toggleEditMode()">修改</button>
+      <button class="primary warn" id="f3del" disabled onclick="deleteSelectedCourse()">🗑 删除</button>
+      <button class="plain" onclick="loadCourses()">刷新</button>
+    </div>
+    <div id="f3msg"></div>
+    <div id="f3table"><p class="hint">加载中…</p></div>
+  </div>
+</section>
+
+<!-- ==================== 成绩录入修改 ==================== -->
+<section id="p4" class="panel">
+  <div class="card">
+    <h2>录入 / 修改学生成绩</h2>
+    <p class="desc">选择学生与课程填入成绩；已有记录则修改，否则录入；留空表示暂未录入。</p>
+    <div class="toolbar">
+      <button class="primary" onclick="openGradeDlg()">＋ 录入 / 修改成绩</button>
+      <button class="plain" onclick="loadGrades()">刷新成绩表</button>
+    </div>
+    <div id="f4msg"></div>
+    <div id="f4table"><p class="hint">加载中…</p></div>
+  </div>
+</section>
+
+<!-- ==================== 统计成绩信息 ==================== -->
+<section id="p5" class="panel">
+  <div class="card">
+    <h2>统计成绩信息（按系）</h2>
+    <p class="desc">选择系名，勾选输出项后统计。</p>
+    <div class="inline-form">
+      <div class="field">
+        <label>系名</label>
+        <select id="s5dept"></select>
+      </div>
+      <div class="field" style="min-width:360px">
+        <label>选择要输出的统计内容</label>
+        <span class="prereq-list" style="max-height:none">
+          <label><input type="checkbox" class="s5f" value="total" checked> 选课人次</label>
+          <label><input type="checkbox" class="s5f" value="avg" checked> 平均分</label>
+          <label><input type="checkbox" class="s5f" value="max" checked> 最高分</label>
+          <label><input type="checkbox" class="s5f" value="min" checked> 最低分</label>
+          <label><input type="checkbox" class="s5f" value="excellent" checked> 优秀率(≥90)</label>
+          <label><input type="checkbox" class="s5f" value="fail" checked> 不及格人数(&lt;60)</label>
+        </span>
+      </div>
+      <button class="primary" onclick="doStats()">开始统计</button>
+    </div>
+    <div id="f5msg"></div>
+    <div id="f5table"></div>
+  </div>
+</section>
+
+<!-- ==================== 按系排名 ==================== -->
+<section id="p6" class="panel">
+  <div class="card">
+    <h2>按系排名</h2>
+    <p class="desc">输入系名（留空 = 全部），按成绩降序显示系内排名。</p>
+    <div class="inline-form">
+      <div class="field">
+        <label>系名</label>
+        <select id="s6dept"></select>
+      </div>
+      <button class="primary" onclick="doRank()">查询排名</button>
+    </div>
+    <div id="f6msg"></div>
+    <div id="f6table"></div>
+  </div>
+</section>
+
+<!-- ==================== 学生信息查询 ==================== -->
+<section id="p7" class="panel">
+  <div class="card">
+    <h2>学生信息查询</h2>
+    <p class="desc">输入学号，查询基本信息与选课信息。</p>
+    <div class="inline-form">
+      <div class="field">
+        <label>学号</label>
+        <input type="text" id="s7sno" maxlength="9" placeholder="如 202510801">
+        <div class="hint">9 位数字</div>
+      </div>
+      <button class="primary" onclick="doQuerySno()">查询</button>
+    </div>
+    <div id="f7msg"></div>
+  </div>
+  <div class="card" id="f7infoCard" style="display:none">
+    <h2>基本信息</h2>
+    <div id="f7info"></div>
+  </div>
+  <div class="card" id="f7courseCard" style="display:none">
+    <h2>选课信息</h2>
+    <div id="f7table"></div>
+  </div>
+</section>
+
+<!-- ==================== 删除学生信息 ==================== -->
+<section id="p8" class="panel">
+  <div class="card">
+    <h2>删除学生信息</h2>
+    <p class="desc">点击行末「删除」并确认；该生已有的选课成绩将一并删除。</p>
+    <div class="toolbar">
+      <button class="plain" onclick="loadDeleteTable()">刷新</button>
+    </div>
+    <div id="f8msg"></div>
+    <div id="f8table"><p class="hint">加载中…</p></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- ==================== 对话框：录入新生（功能 1） ==================== -->
+<dialog id="dlgStudent">
+  <div class="dlg-head">录入新生信息</div>
+  <div class="dlg-body">
+    <form id="formStudent" onsubmit="return false">
+      <label>学号 Sno *</label>
+      <input type="text" name="Sno" maxlength="9" placeholder="9 位数字，如 202215126">
+      <label>姓名 Sname *</label>
+      <input type="text" name="Sname" maxlength="20">
+      <label>性别 Ssex *</label>
+      <select name="Ssex">
+        <option value="" disabled selected>请选择</option>
+        <option value="男">男</option>
+        <option value="女">女</option>
+      </select>
+      <label>年龄 Sage *</label>
+      <input type="number" name="Sage" min="1" max="150" step="1">
+      <label>所在系 Sdept *</label>
+      <select name="Sdept" id="stuDept"></select>
+      <label>奖学金 Scholarship</label>
+      <select name="Scholarship"><option value="否">否</option><option value="是">是</option></select>
+      <div class="msg err" id="stuErr" style="display:none"></div>
+    </form>
+  </div>
+  <div class="dlg-foot">
+    <button class="plain" onclick="dlgStudent.close()">取消</button>
+    <button class="primary" onclick="submitStudent()">提交</button>
+  </div>
+</dialog>
+
+<!-- ==================== 对话框：课程添加/修改（功能 3） ==================== -->
+<dialog id="dlgCourse">
+  <div class="dlg-head" id="cTitle">添加课程</div>
+  <div class="dlg-body">
+    <form id="formCourse" onsubmit="return false">
+      <label>课程号 Cno *</label>
+      <input type="text" name="Cno" maxlength="4" placeholder="1～4 位数字或字母，如 10">
+      <label>课程名 Cname *</label>
+      <input type="text" name="Cname" maxlength="40">
+      <label>学分 Ccredit *</label>
+      <input type="number" name="Ccredit" min="0" max="10" step="0.01" placeholder="0~10，如 2.5">
+      <label>先修课（可多选）</label>
+      <div class="prereq-list" id="cPrereqs"></div>
+      <div class="msg err" id="cErr" style="display:none"></div>
+    </form>
+  </div>
+  <div class="dlg-foot">
+    <button class="plain" onclick="dlgCourse.close()">取消</button>
+    <button class="primary" onclick="submitCourse()">保存</button>
+  </div>
+</dialog>
+
+<!-- ==================== 对话框：成绩录入/修改（功能 4） ==================== -->
+<dialog id="dlgGrade">
+  <div class="dlg-head">录入 / 修改成绩</div>
+  <div class="dlg-body">
+    <form id="formGrade" onsubmit="return false">
+      <label>学生 *</label>
+      <select id="gSno"></select>
+      <label>课程 *</label>
+      <select id="gCno"></select>
+      <label>成绩 Grade</label>
+      <input type="number" id="gGrade" min="0" max="100" step="1" placeholder="0~100，留空=暂未录入">
+      <div class="msg err" id="gErr" style="display:none"></div>
+    </form>
+  </div>
+  <div class="dlg-foot">
+    <button class="plain" onclick="dlgGrade.close()">取消</button>
+    <button class="primary" onclick="submitGrade()">提交</button>
+  </div>
+</dialog>
+
+<div id="toastWrap"></div>
+
+<script>
+/* ====================================================================
+ * 教务管理系统前端（原生 JS，无框架）
+ *   功能1  POST /api/students        功能5  GET /api/stats
+ *   功能2  PUT  /api/students/{sno}  功能6  GET /api/rank
+ *   功能3  /api/courses 增删改       功能7  GET /api/students/{sno}
+ *   功能4  POST /api/grades
+ * ==================================================================== */
+
+/* ---------------- 通用小工具 ---------------- */
+const $ = (id) => document.getElementById(id);
+
+/* 转义 HTML，防止表格注入 */
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* 华中科技大学各院系（“所在系”下拉选项） */
+const DEPTS = [
+  "计算机科学与技术学院", "软件学院", "人工智能与自动化学院", "电子信息与通信学院",
+  "光学与电子信息学院", "集成电路学院", "网络空间安全学院", "电气与电子工程学院",
+  "能源与动力工程学院", "机械科学与工程学院", "材料科学与工程学院", "船舶与海洋工程学院",
+  "航空航天学院", "土木与水利工程学院", "建筑与城市规划学院", "环境科学与工程学院",
+  "化学与化工学院", "生命科学与技术学院", "数学与统计学院", "物理学院",
+  "管理学院", "经济学院", "公共管理学院", "医药卫生管理学院",
+  "法学院", "新闻与信息传播学院", "外国语学院", "人文学院",
+  "体育学院", "基础医学院", "公共卫生学院", "药学院",
+  "第一临床学院", "第二临床学院",
+];
+
+/* 生成院系下拉选项；current 为当前值（不在列表中时补充显示） */
+function deptOptions(current, withPlaceholder = true) {
+  const list = [...DEPTS];
+  if (current && !list.includes(current)) list.unshift(current);
+  let html = withPlaceholder
+    ? `<option value="" disabled ${current ? "" : "selected"}>请选择院系</option>` : "";
+  html += list.map(d =>
+    `<option value="${esc(d)}" ${d === current ? "selected" : ""}>${esc(d)}</option>`).join("");
+  return html;
+}
+
+/* 调用后端 API：失败抛出带 hint 的 Error */
+async function api(path, method = "GET", body = null) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  let r, data;
+  try {
+    r = await fetch(path, opts);
+    data = await r.json();
+  } catch (e) {
+    throw Object.assign(new Error("无法连接后端服务"), { hint: "请确认已运行 python app.py" });
+  }
+  if (!r.ok || data.ok === false) {
+    throw Object.assign(new Error(data.message || "请求失败"), { hint: data.hint || "" });
+  }
+  return data.data !== undefined ? data.data : data;
+}
+
+/* 弹出提示（成功 / 失败），2.6 秒后自动消失 */
+function toast(msg, ok = true) {
+  const t = document.createElement("div");
+  t.className = "toast " + (ok ? "ok" : "err");
+  t.textContent = msg;
+  $("toastWrap").appendChild(t);
+  requestAnimationFrame(() => t.classList.add("show"));
+  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2600);
+}
+
+/* 在面板里显示成功 / 失败信息（失败时附上合法数据范围提示） */
+function showMsg(boxId, err) {
+  const box = $(boxId);
+  if (err === null) { box.innerHTML = ""; return; }
+  if (err.ok === true) {
+    box.innerHTML = `<div class="msg ok">${esc(err.text)}</div>`;
+  } else {
+    box.innerHTML = `<div class="msg err">${esc(err.text)}
+      ${err.hint ? `<span class="hintrule">合法数据范围：${esc(err.hint)}</span>` : ""}</div>`;
+  }
+}
+
+/* 通用表格渲染：cols = [{k, label}] */
+function renderTable(boxId, cols, rows, emptyText = "暂无数据") {
+  if (!rows || !rows.length) { $(boxId).innerHTML = `<p class="hint">${emptyText}</p>`; return; }
+  const head = cols.map(c => `<th>${esc(c.label)}</th>`).join("");
+  const body = rows.map(r => "<tr>" +
+    cols.map(c => `<td>${esc(r[c.k] ?? "—")}</td>`).join("") + "</tr>").join("");
+  $(boxId).innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/* ---------------- 导航切换 ---------------- */
+document.querySelectorAll("#nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#nav button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    $(btn.dataset.p).classList.add("active");
+    /* 惰性加载对应面板的数据 */
+    if (btn.dataset.p === "p3") loadCourses();
+    if (btn.dataset.p === "p4") { loadGrades(); refreshGradeSelects(); }
+    if (btn.dataset.p === "p5" || btn.dataset.p === "p6") refreshDeptSelects();
+    if (btn.dataset.p === "p8") loadDeleteTable();
+  });
+});
+
+/* ---------------- 系名下拉（功能 5 / 6 共用）：
+   从学生表实际存在的系中动态生成选项 ---------------- */
+async function refreshDeptSelects() {
+  try {
+    const students = await api("/api/students");
+    const depts = [...new Set(students.map(s => s.Sdept))].sort();
+    const options = `<option value="">全部系</option>` +
+      depts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    $("s5dept").innerHTML = options;
+    $("s6dept").innerHTML = options;
+  } catch (e) { toast(e.message, false); }
+}
+
+/* ====================================================================
+ * 功能 1：录入新生信息（对话框 → 提交 → 成功提示 + 展示全部学生）
+ * ==================================================================== */
+const dlgStudent = $("dlgStudent");
+$("stuDept").innerHTML = deptOptions("");     // 填充院系下拉
+
+function openStudentDlg() {
+  $("formStudent").reset();
+  $("stuDept").innerHTML = deptOptions("");
+  $("stuErr").style.display = "none";
+  dlgStudent.showModal();
+}
+
+async function submitStudent() {
+  const f = $("formStudent");
+  const body = {
+    Sno: f.Sno.value.trim(), Sname: f.Sname.value.trim(),
+    Ssex: f.Ssex.value, Sage: f.Sage.value.trim(),
+    Sdept: f.Sdept.value, Scholarship: f.Scholarship.value,
+  };
+  try {
+    await api("/api/students", "POST", body);
+    dlgStudent.close();
+    toast(`添加成功：${body.Sno} ${body.Sname} 已录入`);
+    showMsg("f1msg", { ok: true, text: `添加成功！新生「${body.Sname}（${body.Sno}）」已保存，全部学生信息如下。` });
+    loadStudents("f1table", body.Sno);   // 新生置顶显示
+  } catch (e) {
+    /* 已存在的重复类错误 → 只显示“添加失败！学号 xxx 已存在”；
+       其余非法数据 → 仍附上合法数据范围提示（双重校验要求） */
+    const dup = e.message.includes("已存在");
+    $("stuErr").style.display = "block";
+    if (dup) {
+      $("stuErr").innerHTML = `添加失败！${esc(e.message)}`;
+      showMsg("f1msg", { ok: false, text: `添加失败！${e.message}` });
+      toast("添加失败", false);
+    } else {
+      $("stuErr").innerHTML = `添加失败，请输入合法数据：${esc(e.message)}
+        ${e.hint ? `<span class="hintrule">合法数据范围：${esc(e.hint)}</span>` : ""}`;
+      showMsg("f1msg", { ok: false, text: `添加失败：${e.message}`, hint: e.hint });
+      toast("添加失败，请输入合法数据", false);
+    }
+  }
+}
+
+/* 展示全部学生；pinSno 不为空时，把该学号的学生置顶显示（便于核对刚录入的信息） */
+async function loadStudents(boxId, pinSno = null) {
+  try {
+    const rows = await api("/api/students");
+    if (pinSno) {
+      const i = rows.findIndex(r => r.Sno === pinSno);
+      if (i > 0) rows.unshift(rows.splice(i, 1)[0]);
+    }
+    renderTable(boxId,
+      [{ k: "Sno", label: "学号" }, { k: "Sname", label: "姓名" },
+       { k: "Ssex", label: "性别" }, { k: "Sage", label: "年龄" },
+       { k: "Sdept", label: "所在系" }, { k: "Scholarship", label: "奖学金" }],
+      rows);
+  } catch (e) { showMsg("f1msg", { ok: false, text: e.message, hint: e.hint }); }
+}
+
+/* ====================================================================
+ * 功能 2：学生信息修改（点击修改加载表格 → 点击信息栏编辑 → 保存确认）
+ * ==================================================================== */
+const STUDENT_COLS = [
+  { k: "Sname", label: "姓名" }, { k: "Ssex", label: "性别" },
+  { k: "Sage", label: "年龄" }, { k: "Sdept", label: "所在系" },
+  { k: "Scholarship", label: "奖学金" },
+];
+
+async function loadEditTable() {
+  try {
+    const rows = await api("/api/students");
+    const head = "<tr><th>学号</th>" +
+      STUDENT_COLS.map(c => `<th>${c.label}</th>`).join("") + "<th>操作</th></tr>";
+    const body = rows.map(s => {
+      /* 性别、所在系、奖学金用下拉编辑，其余为文本输入（学号不可修改） */
+      const name = `<td><input data-f="Sname" maxlength="20" value="${esc(s.Sname ?? "")}"></td>`;
+      const sex = `<td><select data-f="Ssex">
+        ${["男", "女"].map(x => `<option value="${x}" ${s.Ssex === x ? "selected" : ""}>${x}</option>`).join("")}
+      </select></td>`;
+      const age = `<td><input data-f="Sage" type="number" min="1" max="150" value="${esc(s.Sage ?? "")}"></td>`;
+      const dept = `<td><select data-f="Sdept">${deptOptions(s.Sdept, false)}</select></td>`;
+      const sch = `<td><select data-f="Scholarship">
+        ${["否", "是"].map(x => `<option value="${x}" ${s.Scholarship === x ? "selected" : ""}>${x}</option>`).join("")}
+      </select></td>`;
+      return `<tr><td>${esc(s.Sno)}</td>${name}${sex}${age}${dept}${sch}
+        <td class="ops"><button class="primary" onclick="saveStudent('${esc(s.Sno)}', this)">保存</button></td></tr>`;
+    }).join("");
+    $("f2table").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>
+      <p class="hint">提示：点击姓名 / 性别 / 年龄 / 系 / 奖学金栏目即可编辑（学号不可修改），编辑后点「保存」。</p>`;
+    showMsg("f2msg", null);
+  } catch (e) { showMsg("f2msg", { ok: false, text: e.message, hint: e.hint }); }
+}
+
+/* 保存某行的修改：先弹确认框，确认后才提交 */
+async function saveStudent(sno, btn) {
+  const tr = btn.closest("tr");
+  const body = {};
+  tr.querySelectorAll("[data-f]").forEach(i => body[i.dataset.f] = i.value.trim());
+  if (!confirm(`确认保存对学号 ${sno} 的修改吗？\n` +
+      `新信息：${body.Sname} / ${body.Ssex} / ${body.Sage} / ${body.Sdept} / ${body.Scholarship}`))
+    return;
+  try {
+    await api("/api/students/" + sno, "PUT", body);
+    toast("修改成功，已保存");
+    showMsg("f2msg", { ok: true, text: `学号 ${sno} 的信息修改成功。` });
+    loadEditTable();
+  } catch (e) {
+    toast("修改失败", false);
+    showMsg("f2msg", { ok: false, text: `修改失败：${e.message}`, hint: e.hint });
+  }
+}
+
+/* ====================================================================
+ * 功能 3：课程信息维护（添加 / 修改 / 删除，含先修课）
+ * ==================================================================== */
+const dlgCourse = $("dlgCourse");
+let courseRows = [];        // 当前课程列表缓存
+let selectedCno = null;     // 当前选中的课程号（用于删除）
+let courseEditing = false;  // 课程修改选择模式：先点「修改」才能选中要修改的课程
+
+/* 进入 / 退出“修改选择模式” */
+function toggleEditMode() {
+  courseEditing = !courseEditing;
+  const btn = $("f3edit");
+  btn.textContent = courseEditing ? "退出修改" : "修改";
+  btn.classList.toggle("warn", courseEditing);
+  if (courseEditing) {
+    selectedCno = null;
+    document.querySelectorAll("#f3table tr[data-cno]")
+      .forEach(tr => tr.classList.remove("selected"));
+    showMsg("f3msg", { ok: true, text: "修改模式：请点击要修改的课程行，完成后自动退出。" });
+  } else {
+    showMsg("f3msg", null);
+  }
+  updateCourseButtons();
+}
+
+/* 课程对话框关闭（保存或取消）后，退出修改选择模式 */
+dlgCourse.addEventListener("close", () => {
+  if (courseEditing) toggleEditMode();
+});
+
+/* 加载课程表；pinCno 不为空时把该课程号置顶（用于核对刚添加的课程） */
+async function loadCourses(pinCno = null) {
+  try {
+    courseRows = await api("/api/courses");
+    if (pinCno) {
+      const i = courseRows.findIndex(c => c.Cno === pinCno);
+      if (i > 0) courseRows.unshift(courseRows.splice(i, 1)[0]);
+    }
+    const cols = [{ k: "Cno", label: "课程号" }, { k: "Cname", label: "课程名" },
+                  { k: "Ccredit", label: "学分" }, { k: "chosen", label: "选课人数" }];
+    const head = cols.map(c => `<th>${c.label}</th>`).join("") + "<th>先修课</th>";
+    const body = courseRows.map(c => {
+      const pre = (c.prereqs || []).map(p => `${esc(p.Cno)} ${esc(p.Cname)}`).join("、") || "—";
+      return `<tr data-cno="${esc(c.Cno)}" onclick="selectCourse('${esc(c.Cno)}')">
+        ${cols.map(x => `<td>${esc(c[x.k] ?? "")}</td>`).join("")}<td>${pre}</td></tr>`;
+    }).join("");
+    $("f3table").innerHTML =
+      `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+       <p class="hint">提示：先点「修改」进入选择模式，再点击要修改的课程行；点击行选中后可「删除」。</p>`;
+    showMsg("f3msg", null);
+    updateCourseButtons();
+  } catch (e) {
+    showMsg("f3msg", { ok: false, text: e.message, hint: e.hint });
+  }
+}
+
+/* 点击课程行：修改模式下打开编辑对话框；否则仅选中（供删除用） */
+function selectCourse(cno) {
+  if (courseEditing) {
+    openCourseDlg(cno);      // 已点过「修改」→ 选中要修改的课程并进入编辑
+    return;
+  }
+  selectedCno = cno;
+  document.querySelectorAll("#f3table tr[data-cno]").forEach(
+    tr => tr.classList.toggle("selected", tr.dataset.cno === cno));
+  updateCourseButtons();
+}
+
+function updateCourseButtons() {
+  $("f3del").disabled = courseEditing || selectedCno === null;
+}
+
+/* 打开课程对话框：cno=null 为添加，否则为修改 */
+function openCourseDlg(cno) {
+  const course = cno ? courseRows.find(c => c.Cno === cno) : null;
+  $("cTitle").textContent = course ? `修改课程 ${course.Cno}` : "添加课程";
+  const f = $("formCourse");
+  f.Cno.value = course ? course.Cno : "";
+  f.Cno.disabled = !!course;                       // 修改时课程号（主码）不可改
+  f.Cname.value = course ? course.Cname : "";
+  f.Ccredit.value = course ? course.Ccredit : "";
+  /* 先修课复选列表：列出除自身外的全部课程 */
+  const checked = new Set(course ? (course.prereqs || []).map(p => p.Cno) : []);
+  $("cPrereqs").innerHTML = courseRows
+    .filter(c => !course || c.Cno !== course.Cno)
+    .map(c => `<label><input type="checkbox" value="${esc(c.Cno)}"
+        ${checked.has(c.Cno) ? "checked" : ""}> ${esc(c.Cno)} ${esc(c.Cname)}</label>`)
+    .join("") || '<span class="hint">（暂无其他课程可选）</span>';
+  $("cErr").style.display = "none";
+  dlgCourse.showModal();
+}
+
+async function submitCourse() {
+  const f = $("formCourse");
+  const prereqs = [...document.querySelectorAll("#cPrereqs input:checked")]
+    .map(i => i.value);
+  const body = { Cno: f.Cno.value.trim(), Cname: f.Cname.value.trim(),
+                 Ccredit: f.Ccredit.value.trim(), prereqs };
+  const editing = !f.Cno.disabled;                 // 课程号可编辑 = 添加模式
+  try {
+    if (editing) {
+      await api("/api/courses", "POST", body);
+      toast(`课程添加成功：${body.Cno} ${body.Cname}`);
+      showMsg("f3msg", { ok: true, text: `课程「${body.Cname}（${body.Cno}）」添加成功。` });
+    } else {
+      await api("/api/courses/" + encodeURIComponent(body.Cno), "PUT", body);
+      toast(`课程修改成功：${body.Cno}`);
+      showMsg("f3msg", { ok: true, text: `课程 ${body.Cno} 修改成功。` });
+    }
+    dlgCourse.close();
+    selectedCno = null;
+    loadCourses(editing ? body.Cno : null);   // 新添加的课程置顶显示
+  } catch (e) {
+    $("cErr").style.display = "block";
+    $("cErr").innerHTML = `${esc(e.message)}
+      ${e.hint ? `<span class="hintrule">合法数据范围：${esc(e.hint)}</span>` : ""}`;
+    showMsg("f3msg", { ok: false, text: e.message, hint: e.hint });
+    toast("保存失败", false);
+  }
+}
+
+async function deleteSelectedCourse() {
+  if (!selectedCno) return;
+  const c = courseRows.find(x => x.Cno === selectedCno);
+  if (!confirm(`确认删除课程 ${c.Cno}（${c.Cname}）吗？`)) return;
+  try {
+    await api("/api/courses/" + encodeURIComponent(selectedCno), "DELETE");
+    toast(`课程删除成功：${c.Cno} ${c.Cname}`);
+    showMsg("f3msg", { ok: true, text: `课程 ${c.Cno}（${c.Cname}）已删除。` });
+    selectedCno = null;
+    loadCourses();
+  } catch (e) {
+    /* 只显示第一行失败原因，不再附“合法数据范围”说明 */
+    showMsg("f3msg", { ok: false, text: `删除失败：${e.message}` });
+    toast("删除失败", false);
+  }
+}
+
+/* ====================================================================
+ * 功能 4：录入 / 修改成绩（与功能 1 类似的对话框交互）
+ * ==================================================================== */
+const dlgGrade = $("dlgGrade");
+
+/* 填充学生 / 课程下拉框 */
+async function refreshGradeSelects() {
+  try {
+    const [students, courses] = await Promise.all([api("/api/students"), api("/api/courses")]);
+    $("gSno").innerHTML = students.map(s =>
+      `<option value="${esc(s.Sno)}">${esc(s.Sno)} ${esc(s.Sname)}</option>`).join("");
+    $("gCno").innerHTML = courses.map(c =>
+      `<option value="${esc(c.Cno)}">${esc(c.Cno)} ${esc(c.Cname)}</option>`).join("");
+  } catch (e) { toast(e.message, false); }
+}
+
+function openGradeDlg() {
+  $("gGrade").value = "";
+  $("gErr").style.display = "none";
+  dlgGrade.showModal();
+}
+
+async function submitGrade() {
+  const body = { Sno: $("gSno").value, Cno: $("gCno").value,
+                 Grade: $("gGrade").value.trim() };
+  try {
+    const res = await api("/api/grades", "POST", body);
+    dlgGrade.close();
+    toast(res.message || "保存成功");
+    showMsg("f4msg", { ok: true, text: res.message || "成绩保存成功" });
+    loadGrades(`${body.Sno}|${body.Cno}`);   // 刚保存的记录置顶显示
+  } catch (e) {
+    /* 只显示失败原因本身，不附“合法数据范围”说明 */
+    $("gErr").style.display = "block";
+    $("gErr").innerHTML = esc(e.message);
+    showMsg("f4msg", { ok: false, text: e.message });
+    toast("保存失败", false);
+  }
+}
+
+/* 加载成绩表；pinKey（"学号|课程号"）不为空时置顶该条记录（核对刚保存的成绩） */
+async function loadGrades(pinKey = null) {
+  try {
+    const rows = await api("/api/grades");
+    if (pinKey) {
+      const i = rows.findIndex(r => `${r.Sno}|${r.Cno}` === pinKey);
+      if (i > 0) rows.unshift(rows.splice(i, 1)[0]);
+    }
+    renderTable("f4table",
+      [{ k: "Sno", label: "学号" }, { k: "Sname", label: "姓名" },
+       { k: "Cno", label: "课程号" }, { k: "Cname", label: "课程名" },
+       { k: "Grade", label: "成绩" }],
+      rows.map(r => ({ ...r, Grade: r.Grade ?? "暂未录入" })));
+  } catch (e) { showMsg("f4msg", { ok: false, text: e.message, hint: e.hint }); }
+}
+
+/* ====================================================================
+ * 功能 5：统计成绩信息（输入系名 + 勾选输出项）
+ * ==================================================================== */
+async function doStats() {
+  const dept = $("s5dept").value.trim();
+  const fields = [...document.querySelectorAll(".s5f:checked")].map(i => i.value);
+  if (!fields.length) { toast("请至少勾选一项统计内容", false); return; }
+  try {
+    const rows = await api(`/api/stats?dept=${encodeURIComponent(dept)}&fields=${fields.join(",")}`);
+    if (!rows.length) {
+      $("f5table").innerHTML = "";
+      showMsg("f5msg", { ok: false, text: `系「${dept || "全部"}」暂无已录入的成绩数据`,
+        hint: "请先在功能 4 录入该系学生的成绩，或在下拉框中选择其他系" });
+      return;
+    }
+    const cols = Object.keys(rows[0]).map(k => ({ k, label: k === "Sdept" ? "系别" : k }));
+    renderTable("f5table", cols, rows);
+    showMsg("f5msg", { ok: true, text: `统计完成：${rows.length} 个系。` });
+  } catch (e) { showMsg("f5msg", { ok: false, text: e.message, hint: e.hint }); }
+}
+
+/* ====================================================================
+ * 功能 6：按系排名
+ * ==================================================================== */
+async function doRank() {
+  const dept = $("s6dept").value.trim();
+  try {
+    const rows = await api("/api/rank?dept=" + encodeURIComponent(dept));
+    if (!rows.length) {
+      $("f6table").innerHTML = "";
+      showMsg("f6msg", { ok: false, text: `系「${dept || "全部"}」暂无已录入的成绩数据`,
+        hint: "排名只统计已有成绩的选课记录；请先录入成绩或确认系名" });
+      return;
+    }
+    const cols = dept
+      ? [{ k: "rk", label: "系内名次" }, { k: "Sno", label: "学号" }, { k: "Sname", label: "姓名" },
+         { k: "Cno", label: "课程号" }, { k: "Cname", label: "课程名" }, { k: "Grade", label: "成绩" }]
+      : [{ k: "Sdept", label: "系别" }, { k: "rk", label: "系内名次" }, { k: "Sno", label: "学号" },
+         { k: "Sname", label: "姓名" }, { k: "Cno", label: "课程号" },
+         { k: "Cname", label: "课程名" }, { k: "Grade", label: "成绩" }];
+    renderTable("f6table", cols, rows);
+    showMsg("f6msg", { ok: true, text: `查询成功：共 ${rows.length} 条成绩记录。` });
+  } catch (e) { showMsg("f6msg", { ok: false, text: e.message, hint: e.hint }); }
+}
+
+/* ====================================================================
+ * 功能 7：按学号查询（基本信息 + 选课信息）
+ * ==================================================================== */
+async function doQuerySno() {
+  const sno = $("s7sno").value.trim();
+  if (!sno) { toast("请输入学号", false); return; }
+  try {
+    const data = await api("/api/students/" + encodeURIComponent(sno));
+    const s = data.student;
+    $("f7infoCard").style.display = "";
+    $("f7courseCard").style.display = "";
+    renderTable("f7info",
+      [{ k: "Sno", label: "学号" }, { k: "Sname", label: "姓名" }, { k: "Ssex", label: "性别" },
+       { k: "Sage", label: "年龄" }, { k: "Sdept", label: "所在系" },
+       { k: "Scholarship", label: "奖学金" }], [s]);
+    renderTable("f7table",
+      [{ k: "Cno", label: "课程号" }, { k: "Cname", label: "课程名" },
+       { k: "Ccredit", label: "学分" }, { k: "Grade", label: "成绩" }],
+      data.courses.map(r => ({ ...r, Grade: r.Grade ?? "暂未录入" })),
+      "该生暂无选课记录");
+    showMsg("f7msg", { ok: true, text: `查询成功：${s.Sname}（${s.Sno}），共 ${data.courses.length} 条选课记录。` });
+  } catch (e) {
+    $("f7infoCard").style.display = "none";
+    $("f7courseCard").style.display = "none";
+    showMsg("f7msg", { ok: false, text: e.message });   // 只显示失败原因
+  }
+}
+
+/* ====================================================================
+ * 功能 8：删除学生信息（删除学生时其选课成绩一并删除）
+ * ==================================================================== */
+let deleteRows = [];   // 当前学生列表缓存（用于确认框显示姓名等）
+
+async function loadDeleteTable() {
+  try {
+    const [rows, grades] = await Promise.all([api("/api/students"), api("/api/grades")]);
+    deleteRows = rows;
+    /* 统计每个学生的选课记录数，便于判断删除影响 */
+    const cnt = {};
+    grades.forEach(g => cnt[g.Sno] = (cnt[g.Sno] || 0) + 1);
+    const head = "<tr><th>学号</th><th>姓名</th><th>性别</th><th>年龄</th>" +
+      "<th>所在系</th><th>奖学金</th><th>选课数</th><th>操作</th></tr>";
+    const body = rows.map(s => `<tr>
+      <td>${esc(s.Sno)}</td><td>${esc(s.Sname)}</td>
+      <td>${esc(s.Ssex ?? "")}</td><td>${esc(s.Sage ?? "")}</td>
+      <td>${esc(s.Sdept ?? "")}</td><td>${esc(s.Scholarship ?? "")}</td>
+      <td>${cnt[s.Sno] || 0}</td>
+      <td class="ops"><button class="primary warn" onclick="deleteStudent('${esc(s.Sno)}')">删除</button></td>
+    </tr>`).join("");
+    $("f8table").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    showMsg("f8msg", null);
+  } catch (e) {
+    showMsg("f8msg", { ok: false, text: e.message, hint: e.hint });
+  }
+}
+
+async function deleteStudent(sno) {
+  const stu = deleteRows.find(r => r.Sno === sno);
+  const name = stu ? stu.Sname : "";
+  if (!confirm(`确认删除学号 ${sno} 的学生「${name}」吗？\n其已有选课成绩将一并删除，且不可恢复。`)) return;
+  try {
+    const res = await api("/api/students/" + encodeURIComponent(sno), "DELETE");
+    toast(res.message || "删除成功");
+    showMsg("f8msg", { ok: true, text: res.message || "删除成功" });
+    loadDeleteTable();
+  } catch (e) {
+    toast("删除失败", false);
+    showMsg("f8msg", { ok: false, text: `删除失败：${e.message}`, hint: e.hint });
+  }
+}
+
+/* ---------------- 页面加载时检查后端连接（状态灯） ---------------- */
+(async () => {
+  const ping = $("ping"), text = $("pingText");
+  try {
+    const info = await api("/api/ping");
+    ping.classList.add("good");
+    text.textContent = "运行中";
+    ping.title = `MySQL ${info.mysql} · 库 ${info.database}`;
+  } catch (e) {
+    ping.classList.add("bad");
+    text.textContent = "连接异常";
+    ping.title = "无法连接后端，请运行 python app.py";
+  }
+})();
+</script>
+</body>
+</html>

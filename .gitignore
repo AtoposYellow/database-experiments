@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Office / Word 临时文件
+~$*
+~WRL*.tmp
+*.tmp
+
+# 本地生成实验报告的临时脚本与中间产物
+_build/
+
+# OS
+Thumbs.db
+Desktop.ini
