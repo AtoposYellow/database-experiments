@@ -1,7 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-配置层（config.py）：全项目所有可配置项集中在此，
-其他模块一律从这里读取，改环境只改这一个文件。
+【初学者阅读指南】
+    config.py 是整个项目里最简单的一个文件：它不做任何“事情”，
+    只是存放一堆“配置常量”，供其他文件（database.py、app.py）来读取。
+
+    为什么要单独放一个文件？
+        把“可能需要修改的值”（比如数据库密码）和“程序逻辑”分开，
+        换电脑、换密码时只改这里，别的代码一行都不用动。
+        这在设计模式里叫“配置与代码分离”。
+
+    Python 知识点：
+        DB_CONFIG = { "host": "...", ... } 是“字典”（dict），
+        字典用 {键: 值} 的方式存数据，读取时写 DB_CONFIG["host"]。
+        全大写的变量名（DB_CONFIG、HTTP_PORT）是约定俗成的
+        “常量”写法，提醒大家：不要在程序运行中修改它们。
 
 架构总览（5 个模块，一个文件一个职责，调用方向自上而下）：
     config.py     配置层：数据库连接、端口、路径等全部可配置项        ← 本文件
@@ -9,26 +21,27 @@
     models.py     实体层：实体类与输入校验（双重验证第一重）
     services.py   业务层：六大功能的嵌入式 SQL（双重验证第二重）
     app.py        界面层：HTTP 服务与 REST 路由、程序入口
-
-字段含义与 实验4/db.py 保持一致：
-    host/port     MySQL 服务器地址与端口
-    user/password 数据库账号（本机 root）
-    database      数据库名（本实验使用 sms，建表由 MySQL 端执行 schema.sql 完成）
-    charset       中文必须使用 utf8mb4，否则会乱码
 """
 
+# ----------------------------------------------------------------------
+# 连接 MySQL 需要的全部参数。
+# database.py 里会用 pymysql.connect(**DB_CONFIG) 把这个字典“展开”
+# 成一个个参数传进去（** 的作用就是把字典拆成 key=value 形式）。
+# ----------------------------------------------------------------------
 DB_CONFIG = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "root",
-    "password": "root",        # ← 改成你自己的 root 密码
-    "database": "sms",
-    "charset": "utf8mb4",
-    "connect_timeout": 5,
+    "host": "127.0.0.1",   # MySQL 服务器地址。127.0.0.1 = 本机（localhost）
+    "port": 3306,          # MySQL 默认端口，安装时一般不会改
+    "user": "root",        # 登录用户名，装 MySQL 时的管理员账号
+    "password": "root",    # ← 密码。换成你自己的 MySQL 密码！
+    "database": "sms",     # 要使用的数据库名（由 schema.sql 创建）
+    "charset": "utf8mb4",  # 字符集。utf8mb4 才能完整存中文，否则会乱码
+    "connect_timeout": 5,  # 连不上时最多等 5 秒就报错，避免程序卡死
 }
 
 # Web 服务监听端口（命令行 --port 可覆盖）
+# 浏览器访问 http://127.0.0.1:8000 时，8000 就是这个端口
 HTTP_PORT = 8000
 
 # 前端页面文件位置（相对本文件所在目录）
+# app.py 收到浏览器请求时会读取这个文件返回给浏览器
 INDEX_HTML = "static/index.html"
