@@ -95,9 +95,7 @@ class _ServiceBase:
         self.db = db
 
 
-# ====================================================================== #
 # 功能 1 / 2：学生信息维护 + 功能 6：按学号查询
-# ====================================================================== #
 class StudentService(_ServiceBase):
 
     def list_students(self) -> list:
@@ -119,8 +117,8 @@ class StudentService(_ServiceBase):
         """功能 1：增加新生入学信息。"""
         stu.validate()                                  # 第一重：应用层校验
 
-        # 友好预检查（避免直接把 1062 错误抛给用户）
-        # 先 SELECT 一下再 INSERT，能给出比数据库报错更友好的提示
+        # 预先检查
+        # 先 SELECT 再 INSERT，能给出比数据库报错更友好的提示
         if self.get_student(stu.Sno):
             raise BizError(f"学号 {stu.Sno} 已存在",
                            "学号是 9 位数字且不能与已有学生重复")
@@ -129,25 +127,25 @@ class StudentService(_ServiceBase):
             raise BizError(f"姓名“{stu.Sname}”已存在",
                            "姓名是候选码（UNIQUE），不能与其他学生重名")
 
-        # —— 嵌入式 SQL：功能 1 插入新生记录 ——
+        # 功能 1：插入新生记录
         # SQL 里写 6 个 %s；stu.to_row() 返回的 6 个值按顺序填入
         sql = ("INSERT INTO Student (Sno, Sname, Ssex, Sage, Sdept, Scholarship) "
                "VALUES (%s, %s, %s, %s, %s, %s)")
         try:
             self.db.execute(sql, stu.to_row())
-        except pymysql.err.MySQLError as e:             # 第二重：约束兜底
+        except pymysql.err.MySQLError as e:             # 第二重：完整性约束
             # 万一两条 SELECT 和 INSERT 之间别人抢先插入了相同学号
             # （并发情况），这里的数据库约束还能兜底拒绝
             raise _biz(e) from e
 
     def update_student(self, sno: str, stu: Student):
-        """功能 2：修改学生信息（学号为主码不可改，其余字段可改）。"""
+        """功能 2：修改学生信息"""
         if not self.get_student(sno):
             raise BizError(f"学号 {sno} 不存在，无法修改", "请刷新表格后重试")
         stu.Sno = sno                     # 学号以 URL 路径参数为准（主码不可改）
         stu.validate()                    # 修改后的数据同样要过第一重校验
 
-        # 姓名唯一性预检查（排除本人：AND Sno <> %s 表示“不是我这个学号”）
+       # 检查姓名唯一性
         if self.db.query_one(
                 "SELECT Sno FROM Student WHERE Sname = %s AND Sno <> %s",
                 (stu.Sname, sno)):
@@ -169,8 +167,7 @@ class StudentService(_ServiceBase):
         stu = self.get_student(sno)
         if not stu:
             raise BizError(f"学号 {sno} 不存在", "请输入 9 位数字学号，例如 202215121")
-        # —— 嵌入式 SQL：功能 6 查询该生的选课明细（三表连接）——
-        # JOIN 把 SC（谁选了什么课、多少分）和 Course（课名、学分）拼起来
+        # 嵌入式 SQL：功能 6 查询该生的选课明细
         courses = self.db.query(
             "SELECT c.Cno, c.Cname, c.Ccredit, sc.Grade "
             "FROM SC sc JOIN Course c ON c.Cno = sc.Cno "
@@ -178,9 +175,7 @@ class StudentService(_ServiceBase):
         return {"student": stu, "courses": courses}   # 打包成字典返回给前端
 
     def delete_student(self, sno: str) -> str:
-        """扩展功能：删除学生信息。
-        该生若已有选课成绩，则在同一事务内先删除其 SC 记录再删除学生，
-        保证不违反参照完整性；返回可展示的提示文字。"""
+        """扩展功能：删除学生信息"""
         stu = self.get_student(sno)
         if not stu:
             raise BizError(f"学号 {sno} 不存在，无法删除", "请刷新学生列表后重试")
@@ -199,15 +194,12 @@ class StudentService(_ServiceBase):
         extra = f"，同时删除其 {n} 条选课成绩" if n else ""
         return f"学生 {sno}（{stu['Sname']}）已删除{extra}"
 
-
-# ====================================================================== #
 # 功能 2：课程信息维护（增、改、删，含先修课 CP）
-# ====================================================================== #
 class CourseService(_ServiceBase):
 
     def list_courses(self) -> list:
-        """课程列表：附带选课人数和先修课（课程号 + 课程名）。"""
-        # —— 嵌入式 SQL：课程 + 先修课 + 选课人数（相关子查询）——
+        """课程列表：附带选课人数和先修课"""
+        # 嵌入式 SQL：课程 + 先修课 + 选课人数（相关子查询）——
         # 两个 (SELECT ...) 是“相关子查询”：对每一门课 c 分别计算
         #   chosen     = 有多少人选了这门课
         #   prereq_ids = 这门课所有先修课号，GROUP_CONCAT 拼成 "12,10" 这样的串
@@ -251,11 +243,11 @@ class CourseService(_ServiceBase):
         # （如果只插了课程、先修课插入失败，就会出现“半成品”数据）
         try:
             with self.db.transaction() as conn, conn.cursor() as cur:
-                # —— 嵌入式 SQL：功能 2 插入课程 ——
+                # 功能 2:插入课程
                 cur.execute("INSERT INTO Course (Cno, Cname, Ccredit) "
                             "VALUES (%s, %s, %s)",
                             (course.Cno, course.Cname, float(course.Ccredit)))
-                # —— 嵌入式 SQL：登记先修联系 CP ——
+                # 登记先修联系 CP
                 # 几门先修课就插几行 CP 记录
                 for p in course.prereqs:
                     cur.execute("INSERT INTO CP (Cno, Cpno) VALUES (%s, %s)",
@@ -273,7 +265,7 @@ class CourseService(_ServiceBase):
 
         try:
             with self.db.transaction() as conn, conn.cursor() as cur:
-                # —— 嵌入式 SQL：功能 2 更新课程 ——
+                # 功能 2: 更新课程
                 cur.execute("UPDATE Course SET Cname = %s, Ccredit = %s "
                             "WHERE Cno = %s",
                             (course.Cname, float(course.Ccredit), cno))
@@ -314,10 +306,7 @@ class CourseService(_ServiceBase):
             cur.execute("DELETE FROM CP WHERE Cno = %s", (cno,))
             cur.execute("DELETE FROM Course WHERE Cno = %s", (cno,))
 
-
-# ====================================================================== #
 # 功能 3：成绩的录入与修改
-# ====================================================================== #
 class GradeService(_ServiceBase):
 
     def list_grades(self) -> list:
@@ -351,13 +340,13 @@ class GradeService(_ServiceBase):
 
         try:
             if existing is not None:
-                # —— 嵌入式 SQL：功能 3 修改成绩 ——
+                # 功能 3：修改成绩
                 self.db.execute("UPDATE SC SET Grade = %s "
                                 "WHERE Sno = %s AND Cno = %s",
                                 (enr.grade, enr.Sno, enr.Cno))
                 action = "修改成功"
             else:
-                # —— 嵌入式 SQL：功能 3 录入成绩（新增选课记录）——
+                # 功能 3：录入成绩
                 # enr.grade 为 None 时，PyMySQL 会写入 SQL 的 NULL（暂未录入）
                 self.db.execute("INSERT INTO SC (Sno, Cno, Grade) "
                                 "VALUES (%s, %s, %s)",
@@ -370,10 +359,7 @@ class GradeService(_ServiceBase):
         grade_text = "暂未录入（NULL）" if enr.grade is None else f"{enr.grade} 分"
         return f"成绩{action}：{enr.Sno} / 课程 {enr.Cno} = {grade_text}"
 
-
-# ====================================================================== #
 # 功能 4 / 5：按系统计成绩、按系排名
-# ====================================================================== #
 class StatService(_ServiceBase):
 
     # 允许输出的统计列（白名单，防止把任意字符串拼进 SQL）
@@ -416,9 +402,7 @@ class StatService(_ServiceBase):
 
     def dept_rank(self, dept: str) -> list:
         """功能 5：按系对学生成绩排名（系内名次 + 姓名、课程、成绩）。"""
-        # —— 嵌入式 SQL：功能 5 窗口函数 ROW_NUMBER() 系内排名 ——
-        # PARTITION BY s.Sdept 表示“每个系单独从头编号”
-        # ORDER BY sc.Grade DESC 表示“组内按成绩从高到低”
+        # 功能 5：窗口函数 ROW_NUMBER() 系内排名
         sql = ("SELECT s.Sdept AS Sdept, "
                "       ROW_NUMBER() OVER (PARTITION BY s.Sdept "
                "                          ORDER BY sc.Grade DESC, s.Sno, sc.Cno) AS rk, "
